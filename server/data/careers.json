@@ -1,0 +1,12 @@
+    [
+    {
+        "career": "Cybersecurity Engineer",
+        "streams": ["Science", "Commerce"],
+        "alt_paths": ["BCA → MCA → Cybersecurity"]
+    },
+    {
+        "career": "Robotics Engineer",
+        "streams": ["Science"],
+        "alt_paths": ["BTech Robotics"]
+    }
+    ]
