@@ -1,13 +1,14 @@
-import "../styles/globals.css";
+  import "./globals.css";
 
-export const metadata = {
-  title: "Career AI Platform",
-};
+  export const metadata = {
+    title: "Career AI Platform",
+    description: "AI-powered career guidance for students",
+  };
 
-export default function RootLayout({ children }) {
-  return (
-    <html>
-      <body>{children}</body>
-    </html>
-  );
-}
+  export default function RootLayout({ children }) {
+    return (
+      <html lang="en">
+        <body>{children}</body>
+      </html>
+    );
+  }
