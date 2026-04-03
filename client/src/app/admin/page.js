@@ -1,4 +1,5 @@
     "use client";
+
     import { useEffect, useState } from "react";
 
     export default function Admin() {
@@ -22,7 +23,7 @@
     }, []);
 
     return (
-        <div className="p-10">
+        <div style={{ padding: "20px" }}>
         <h1>Admin Dashboard</h1>
 
         <button onClick={runScraper}>
