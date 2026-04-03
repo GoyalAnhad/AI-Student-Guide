@@ -1,20 +1,25 @@
-    import cheerio from "cheerio";
-    import { safeFetch } from "../utils/fetch.js";
+import cheerio from "cheerio";
+import { safeFetch } from "../fetch.js";
 
-    export async function scrapeExams() {
-    const html = await safeFetch("https://example.com/exams");
+function delay(ms) {
+  return new Promise((res) => setTimeout(res, ms));
+}
 
-    if (!html) return [];
+export async function scrapeUniversities() {
+  await delay(2000);
 
-    const $ = cheerio.load(html);
-    const exams = [];
+  const html = await safeFetch("https://example.com/universities");
+  if (!html) return [];
 
-    $("table tr").each((i, el) => {
-        exams.push({
-        name: $(el).find(".exam-name").text().trim(),
-        date: $(el).find(".exam-date").text().trim(),
-        });
+  const $ = cheerio.load(html);
+  const universities = [];
+
+  $(".university-card").each((i, el) => {
+    universities.push({
+      name: $(el).find("h2").text().trim(),
+      location: $(el).find(".location").text().trim(),
     });
+  });
 
-    return exams;
-    }
+  return universities;
+}

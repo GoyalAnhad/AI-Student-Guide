@@ -1,20 +1,22 @@
-    import Exam from "../models/Exam.js";
-    import University from "../models/University.js";
+import Exam from "../../models/Exam.js";
+import University from "../../models/University.js";
 
-    export async function saveData({ exams, universities }) {
-    for (let exam of exams) {
-        await Exam.updateOne(
-        { name: exam.name },
-        exam,
-        { upsert: true }
-        );
-    }
+export async function saveData({ exams = [], universities = [] }) {
+  for (const exam of exams) {
+    if (!exam?.name) continue;
+    await Exam.updateOne(
+      { name: exam.name },
+      { $set: exam },
+      { upsert: true }
+    );
+  }
 
-    for (let uni of universities) {
-        await University.updateOne(
-        { name: uni.name },
-        uni,
-        { upsert: true }
-        );
-    }
-    }
+  for (const uni of universities) {
+    if (!uni?.name) continue;
+    await University.updateOne(
+      { name: uni.name },
+      { $set: uni },
+      { upsert: true }
+    );
+  }
+}
