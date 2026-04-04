@@ -4,7 +4,7 @@
 
 import mongoose from "mongoose";
 import dotenv from "dotenv";
-dotenv.config();
+dotenv.config({ path: "../.env" });
 
 import University from "../models/University.js";
 import Career from "../models/Career.js";
