@@ -4,8 +4,12 @@
 
 import mongoose from "mongoose";
 import dotenv from "dotenv";
-dotenv.config({ path: "../.env" });
+import { fileURLToPath } from "url";
+import path from "path";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.resolve(__dirname, "../.env") });
+import { connectDB } from "../db.js";
 import University from "../models/University.js";
 import Career from "../models/Career.js";
 import Exam from "../models/Exam.js";
