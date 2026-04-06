@@ -13,7 +13,7 @@ export function mergeAIResponses(aiResponses) {
 
   for (const resp of aiResponses) {
     if (!resp.data) continue;
-    const { careers=[], degrees=[], exams=[], skills=[], universities=[], stream_recommendation } = resp.data;
+    const { careers=[], degrees=[], exams=[], exams_needed=[], skills=[], universities=[], stream_recommendation } = resp.data;
     const w = sourceWeight(resp.source);
 
     // ── Merge careers ──
@@ -38,7 +38,7 @@ export function mergeAIResponses(aiResponses) {
         ex.sources.push(resp.source);
         // Merge courses
         for (const c of (u.relevant_courses || [])) {
-          if (!ex.relevant_courses.includes(c)) ex.relevant_courses.push(c);
+          if (!ex.relevant_courses.some((x) => String(x).toLowerCase() === String(c).toLowerCase())) ex.relevant_courses.push(c);
         }
       } else {
         allUnis.push({
@@ -58,9 +58,18 @@ export function mergeAIResponses(aiResponses) {
       }
     }
 
-    degrees.forEach((d) => { if (!allDegrees.includes(d)) allDegrees.push(d); });
-    exams.forEach((e)   => { if (!allExams.includes(e))   allExams.push(e);   });
-    skills.forEach((s)  => { if (!allSkills.includes(s))  allSkills.push(s);  });
+    for (const d of degrees) {
+      const norm = String(d).trim().toLowerCase();
+      if (norm && !allDegrees.some((x) => String(x).trim().toLowerCase() === norm)) allDegrees.push(d);
+    }
+    [...exams, ...exams_needed].forEach((e) => {
+      const norm = String(e).trim().toLowerCase();
+      if (norm && !allExams.some((x) => String(x).trim().toLowerCase() === norm)) allExams.push(e);
+    });
+    skills.forEach((s) => {
+      const norm = String(s).trim().toLowerCase();
+      if (norm && !allSkills.some((x) => String(x).trim().toLowerCase() === norm)) allSkills.push(s);
+    });
     if (stream_recommendation) streamVotes[stream_recommendation] = (streamVotes[stream_recommendation]||0) + w;
   }
 

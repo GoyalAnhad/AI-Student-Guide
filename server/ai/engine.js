@@ -30,6 +30,7 @@ export async function processStudent(studentData) {
 
     return {
       success: true,
+      degrees:            finalResult.degrees || [],
       careers:            finalResult.careers,
       exams:              finalResult.exams,
       colleges:           verifiedColleges,

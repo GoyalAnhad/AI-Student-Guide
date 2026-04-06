@@ -2,6 +2,8 @@
 // Validates merged AI data against the DB.
 // Supports filters: ownership (Public/Private), state, type.
 
+import axios from "axios";
+import * as cheerio from "cheerio";
 import Career    from "../models/Career.js";
 import University from "../models/University.js";
 import Exam      from "../models/Exam.js";
@@ -12,6 +14,7 @@ import { verifyAIUniversities } from "../scraper/universitySearch.js";
 // ─────────────────────────────────────────────
 export async function validateAndEnrich(mergedData, studentData) {
   const {
+    degrees: aiDegrees = [],
     careers: aiCareers = [],
     exams:   aiExams   = [],
     skills:  aiSkills  = [],
@@ -42,7 +45,13 @@ export async function validateAndEnrich(mergedData, studentData) {
     filters,
   });
 
-  // 5. Verify AI-suggested universities (scrape attempt)
+  // 5. Discover a few web colleges when the DB is thin, then verify them
+  const webCandidates = await discoverCollegesFromWeb({ interests, stream: stream_recommendation, filters });
+  if (webCandidates.length) {
+    aiSuggestedUniversities.push(...webCandidates);
+  }
+
+  // 6. Verify AI-suggested universities (scrape attempt)
   let verifiedAIUnis = [];
   if (aiSuggestedUniversities.length > 0) {
     console.log(`🔍 Verifying ${aiSuggestedUniversities.length} AI-suggested universities...`);
@@ -58,7 +67,7 @@ export async function validateAndEnrich(mergedData, studentData) {
     }
   }
 
-  // 6. Combine: DB colleges first (verified), then AI unis not already in DB list
+  // 7. Combine: DB colleges first (verified), then AI unis not already in DB list
   const dbNames = new Set(dbColleges.map((c) => c.name.toLowerCase()));
   const newAIUnis = verifiedAIUnis.filter((u) => !dbNames.has(u.name.toLowerCase()));
 
@@ -67,10 +76,11 @@ export async function validateAndEnrich(mergedData, studentData) {
     ...newAIUnis,
   ];
 
-  // 7. Roadmap from top DB career
+  // 8. Roadmap from top DB career
   const roadmap = dbCareers[0]?.roadmap || [];
 
   return {
+    degrees: aiDegrees,
     careers: finalCareers,
     exams:   validatedExams,
     colleges: allColleges,
@@ -85,24 +95,63 @@ export async function validateAndEnrich(mergedData, studentData) {
 // Match careers by keyword
 // ─────────────────────────────────────────────
 async function matchCareersFromDB(interests, stream) {
-  const kw = interests.map((i) => i.toLowerCase().trim());
-  const query = {
-    $or: [
-      { interests_matched: { $in: kw } },
-      { keywords: { $in: kw } },
-    ],
-  };
-  if (stream && stream !== "Any") query.$or.push({ stream });
+  const tokens = interests
+    .flatMap((i) => String(i).toLowerCase().split(/[\s,\/()+-]+/g))
+    .map((t) => t.trim())
+    .filter(Boolean);
 
-  let careers = await Career.find(query).limit(5);
-  if (!careers.length) {
-    careers = await Career.find(
-      stream ? { stream: { $in: [stream, "Any"] } } : {}
-    ).limit(3);
+  const all = await Career.find(stream ? { stream: { $in: [stream, "Any"] } } : {});
+  if (!all.length) return [];
+
+  const normalizedQuery = tokens.join(" ");
+  const isWritingQuery = /\b(writing|literature|english|journalism|media|communication|content|editor|publishing)\b/.test(normalizedQuery);
+  const isLawQuery = /\b(law|legal|advocate|justice|court|cl?at|ailet|llb|human rights|corporate law)\b/.test(normalizedQuery);
+
+  function scoreCareer(career) {
+    const bag = [
+      career.title,
+      ...(career.keywords || []),
+      ...(career.interests_matched || []),
+      ...(career.description ? [career.description] : []),
+    ].join(" ").toLowerCase();
+
+    let score = 0;
+
+    for (const token of tokens) {
+      if (token.length < 2) continue;
+      if (bag.includes(token)) score += 2;
+      if (career.title?.toLowerCase().includes(token)) score += 3;
+    }
+
+    if (isWritingQuery) {
+      if (/journalist|media|communication|writer|author|editor|publishing/.test(bag)) score += 8;
+      if (/english|literature|mass communication|media studies/.test(bag)) score += 6;
+      if (/lawyer|advocate|legal|law/.test(bag)) score -= 5;
+    }
+
+    if (isLawQuery) {
+      if (/lawyer|advocate|legal|law/.test(bag)) score += 8;
+    }
+
+    if (tokens.some((t) => career.title?.toLowerCase().includes(t))) score += 5;
+    if (career.keywords?.some((k) => tokens.includes(k.toLowerCase()))) score += 3;
+    if (career.interests_matched?.some((k) => tokens.includes(k.toLowerCase()))) score += 2;
+
+    return score;
   }
-  return careers;
-}
 
+  const scored = all
+    .map((career) => ({ career, score: scoreCareer(career) }))
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score || (b.career.avg_salary_lpa?.entry || 0) - (a.career.avg_salary_lpa?.entry || 0));
+
+  const picked = scored.slice(0, 5).map(({ career }) => career);
+  if (picked.length) return picked;
+
+  return all
+    .sort((a, b) => (b.avg_salary_lpa?.entry || 0) - (a.avg_salary_lpa?.entry || 0))
+    .slice(0, 3);
+}
 function mergeCareers(aiCareers, dbCareers) {
   const result = [];
 
@@ -253,4 +302,74 @@ function filterRelevantCourses(courses = [], interestTags, stream) {
   if (matched.length) return matched;
   const streamMatch = courses.filter((c) => c.stream === stream || c.stream === "Any");
   return streamMatch.length ? streamMatch : courses;
+}
+
+async function discoverCollegesFromWeb({ interests = [], stream = "Any", filters = {} }) {
+  try {
+    const primary = interests.slice(0, 4).join(" ").trim();
+    const state = filters.state || "India";
+    const ownership = filters.ownership && filters.ownership !== "All" ? filters.ownership : "";
+    const type = filters.type || "";
+
+    const queryVariants = [
+      [primary, stream, ownership, type, state, "college", "university", "official site"],
+      [primary, state, "private college", "official site"],
+      [primary, state, "private university", "official site"],
+      [state, "private colleges", "official site"],
+      [state, "universities", "official site"],
+    ]
+      .map((parts) => parts.filter(Boolean).join(" ").trim())
+      .filter(Boolean);
+
+    function normalizeSearchUrl(href) {
+      try {
+        const u = new URL(href, "https://duckduckgo.com");
+        const uddg = u.searchParams.get("uddg");
+        return uddg ? decodeURIComponent(uddg) : u.href;
+      } catch (_) {
+        return href.startsWith("http") ? href : (href.startsWith("//") ? "https:" + href : href);
+      }
+    }
+
+    const results = [];
+    const seen = new Set();
+
+    for (const query of queryVariants) {
+      const url = "https://html.duckduckgo.com/html/?q=" + encodeURIComponent(query);
+      const { data } = await axios.get(url, { timeout: 8000, headers: { "User-Agent": "Mozilla/5.0" } });
+      const $ = cheerio.load(data);
+
+      $("a.result__a").each((_, el) => {
+        const title = $(el).text().trim();
+        const href = $(el).attr("href");
+        if (!title || !href) return;
+        if (!/college|university|institute|school|academy/i.test(title)) return;
+
+        const name = title.replace(/\s*[-|]\s*Official.*$/i, "").trim();
+        const key = name.toLowerCase();
+        if (seen.has(key)) return;
+        seen.add(key);
+
+        results.push({
+          name,
+          shortName: title.split("-")[0].trim().slice(0, 35),
+          city: filters.state || "",
+          state: filters.state || "",
+          type: type || "Other",
+          ownership: ownership || "Unknown",
+          relevant_courses: interests.slice(0, 4),
+          exams_accepted: [],
+          website: normalizeSearchUrl(href),
+          why_relevant: `Discovered from live web search for ${query}`,
+          sources: ["web-search"],
+        });
+      });
+
+      if (results.length >= 8) break;
+    }
+
+    return results.slice(0, 10);
+  } catch (_) {
+    return [];
+  }
 }

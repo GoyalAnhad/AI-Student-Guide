@@ -169,6 +169,40 @@ const CareerCard = ({ career, index }) => {
   );
 };
 
+// ── Degree Card ────────────────────────────────
+const DegreeCard = ({ degree, index }) => {
+  const [open, setOpen] = useState(index === 0);
+  return (
+    <div style={{ border: '1px solid ' + C.border, borderRadius: 14, marginBottom: 12, overflow: 'hidden', background: C.white }}>
+      <div onClick={() => setOpen(!open)} style={{ padding: '16px 20px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontWeight: 700, fontSize: 16, color: C.dark }}>#{index + 1} {degree.name}</span>
+            {degree.stream_required && <Badge label={degree.stream_required} color={C.primary} />}
+            {degree.duration && <Badge label={degree.duration} color={C.purple} />}
+          </div>
+          <div style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>{degree.why_relevant}</div>
+        </div>
+        <span style={{ fontSize: 18, color: C.muted, marginLeft: 12 }}>{open ? "▲" : "▼"}</span>
+      </div>
+
+      {open && (
+        <div style={{ padding: '0 20px 18px', borderTop: '1px solid ' + C.border }}>
+          {degree.min_marks_typical !== undefined && (
+            <div style={{ fontSize: 12, color: C.muted, marginTop: 10 }}>Typical marks: <strong style={{ color: C.dark }}>{degree.min_marks_typical}%+</strong></div>
+          )}
+          {degree.career_paths?.length > 0 && (
+            <div style={{ marginTop: 12 }}>
+              <div style={{ fontSize: 12, color: C.muted, marginBottom: 4 }}>Career paths:</div>
+              {degree.career_paths.map((c, i) => <Badge key={i} label={c} color={C.success} />)}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ── College Card ───────────────────────────────
 const CollegeCard = ({ college, isAISuggested = false }) => {
   const [open, setOpen] = useState(false);
@@ -319,7 +353,7 @@ export default function Home() {
   const [error, setError]         = useState("");
   const [isConnected, setIsConn]  = useState(false);
   const [progressMsg, setProgress]= useState("");
-  const [activeTab, setActiveTab] = useState("careers");
+  const [activeTab, setActiveTab] = useState("degrees");
 
   // Form
   const [query, setQuery]         = useState("");
@@ -363,11 +397,13 @@ export default function Home() {
   };
 
   // ── Computed values ──
+  const degrees             = result?.degrees           || [];
   const verifiedColleges    = result?.colleges          || [];
   const aiColleges          = result?.aiSuggestedColleges || [];
   const totalColleges       = verifiedColleges.length + aiColleges.length;
 
   const tabs = [
+    { id: "degrees",  label: `Degrees (${result?.degrees?.length || 0})` },
     { id: "careers",  label: `Careers (${result?.careers?.length || 0})` },
     { id: "colleges", label: `Colleges (${totalColleges})` },
     { id: "exams",    label: `Exams (${result?.exams?.length || 0})` },
@@ -517,6 +553,15 @@ export default function Home() {
               ))}
             </div>
 
+            {/* ── Degrees tab ── */}
+            {activeTab === "degrees" && (
+              <div>
+                {degrees.length
+                  ? degrees.map((d, i) => <DegreeCard key={i} degree={d} index={i} />)
+                  : <Card><p style={{ color: C.muted }}>No degrees found.</p></Card>}
+              </div>
+            )}
+
             {/* ── Careers tab ── */}
             {activeTab === "careers" && (
               <div>
@@ -608,7 +653,7 @@ export default function Home() {
               </Card>
             )}
 
-            <button onClick={() => { setStep(1); setResult(null); setActiveTab("careers"); }}
+            <button onClick={() => { setStep(1); setResult(null); setActiveTab("degrees"); }}
               style={{ marginTop: 8, padding: "11px 22px", background: "transparent", color: C.muted, border: `1px solid ${C.border}`, borderRadius: 10, cursor: "pointer", fontSize: 14 }}>
               ← Start Over
             </button>

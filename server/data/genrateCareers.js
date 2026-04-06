@@ -5,7 +5,7 @@
     List 50 careers related to ${domain} with required skills and degrees
     `;
 
-    const responses = await getAIResponses(prompt);
+    const responses = await getAIResponses({ query: domain, interests: [domain], marks: {}, stream: "Any", grade: "12th", subjects: [] });
 
     return responses;
     }
