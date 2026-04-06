@@ -1,20 +1,33 @@
 // server/socket.js
 import { Server } from "socket.io";
 import { processStudent } from "./ai/engine.js";
+import { setAdminIO } from "./utils/logger.js";
 
 export function initSocket(server) {
   const io = new Server(server, { cors: { origin: "*" } });
 
+  // ── Admin namespace — receives all log events ──
+  const adminIO = io.of("/admin");
+  setAdminIO(adminIO); // wire logger to emit to /admin namespace
+
+  adminIO.on("connection", (socket) => {
+    console.log("🔧 Admin connected:", socket.id);
+    socket.emit("log", { type: "system", message: "Admin dashboard connected. Watching live logs.", timestamp: new Date() });
+    socket.on("disconnect", () => console.log("🔧 Admin disconnected:", socket.id));
+  });
+
+  // ── User namespace — student analysis ──
   io.on("connection", (socket) => {
-    console.log("Socket connected:", socket.id);
+    console.log("Student connected:", socket.id);
 
     socket.on("analyze", async (data) => {
       try {
-        socket.emit("progress", { step: 1, message: "🤖 Consulting GPT-4, Gemini & Claude..." });
-        await delay(300);
-        socket.emit("progress", { step: 2, message: "⚖️  AI debate & confidence scoring..." });
+        // Attach session id for log correlation
+        const studentData = { ...data, session_id: socket.id };
 
-        const result = await processStudent(data);
+        socket.emit("progress", { step: 1, message: "🤖 Consulting AI advisors (GPT-4, Gemini, Claude)..." });
+
+        const result = await processStudent(studentData);
 
         socket.emit("progress", { step: 3, message: "✅ Analysis complete!" });
         socket.emit("result", result);
@@ -24,8 +37,6 @@ export function initSocket(server) {
       }
     });
 
-    socket.on("disconnect", () => console.log("Socket disconnected:", socket.id));
+    socket.on("disconnect", () => console.log("Student disconnected:", socket.id));
   });
 }
-
-const delay = (ms) => new Promise((r) => setTimeout(r, ms));
