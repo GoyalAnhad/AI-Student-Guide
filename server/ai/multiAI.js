@@ -78,14 +78,14 @@ Be specific to the query.`;
 
 function resolveGeminiModel() {
   const raw = String(process.env.GEMINI_MODEL || "").trim();
-  const fallback = "gemini-2.0flash";
+  const fallback = "gemini-2.5-flash";
   if (!raw) return fallback;
 
   const deprecated = new Set([
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-latest",
-    "gemini-2.0-pro",
-    "gemini-2.0-pro-latest",
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-latest",
+    "gemini-2.5-pro",
+    "gemini-2.5-pro-latest",
     "gemini-pro",
     "gemini-pro-vision",
   ]);
@@ -316,9 +316,9 @@ async function queryGemini(prompt, sessionId, studentData) {
     try {
       parsed = await run(modelName);
     } catch (err) {
-      if (isGeminiModelError(err) && modelName !== "gemini-2.0-flash") {
-        await logger.system(`Gemini model ${modelName} unavailable; retrying with gemini-2.0-flash`);
-        parsed = await run("gemini-2.0-flash");
+      if (isGeminiModelError(err) && modelName !== "gemini-2.5-flash") {
+        await logger.system(`Gemini model ${modelName} unavailable; retrying with gemini-2.5-flash`);
+        parsed = await run("gemini-2.5-flash");
       } else {
         throw err;
       }
